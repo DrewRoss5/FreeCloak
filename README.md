@@ -14,7 +14,7 @@ While this tool uses AES256-GCM encryption, and cryptographically secure numbers
 
 ## Usage
 To run the program, clone this repo and use the `cargo build` or `cargo run` command. This will also create a standalone executable at the path `target/debug/cloak` (`cloak.exe` on Windows systems)
-### Comands:
+### Commands:
 <dl>
   <dt>help</dt>
   <dd>Displays the help dialogue</dd>
