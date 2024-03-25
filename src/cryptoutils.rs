@@ -1,5 +1,5 @@
 pub mod crypto_utils{
-    use std::{fs, io::ErrorKind};
+    use std::{fs, io::ErrorKind, path};
     use aes_gcm::{aead::{rand_core::RngCore, Aead, OsRng}, AeadCore, Aes256Gcm, Key, KeyInit};
     use sha2::{Sha256, Digest};
 
@@ -83,6 +83,22 @@ pub mod crypto_utils{
             Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to decrypt ciphertext"))}
         }
         fs::write(new_path, plaintext)?;
+        Ok(())
+    }
+
+    // exports the key of a file to a predetermined path
+    pub fn export_key(password: &String, file_path: &String, key_path: &String) -> Result<(), std::io::Error>{
+        // ensure the file path exists
+        if !path::Path::new(file_path).is_file(){
+            return Err(std::io::Error::new(ErrorKind::InvalidInput, "Invalid file path"))
+        }
+        // read the file's key checksum and salt (the nonce is irrelevant for this function)
+        let contents = fs::read(file_path)?;
+        let salt = &contents[..SALT_SIZE];
+        let checksum = &contents[SALT_SIZE..HASH_SIZE+SALT_SIZE];
+        // validate the password and write the key to the file if its valid
+        let key_bytes = get_key(password, salt, checksum)?;
+        fs::write(key_path, key_bytes)?;
         Ok(())
     }
 }

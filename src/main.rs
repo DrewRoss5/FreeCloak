@@ -1,5 +1,7 @@
-use std::{env::args, io::{stdout, Write}, path::Path, process::exit};
+use std::{env::args, io::{stdin, stdout, Write}, path::Path, process::exit};
 use rpassword::read_password;
+
+use crate::cryptoutils::crypto_utils;
 
 pub mod cryptoutils;
 
@@ -7,10 +9,11 @@ pub mod cryptoutils;
 fn print_help(){
     let commands = [("encrypt", "[infile] [outfile OPTIONAL]", "Encrypts the infile with a password and saves the ciphertext to the outfile, if no outfile is provided, infile will be encrypted in place"), 
                                              ("decrypt", "[infile] [outfile OPTIONAL]", "Decrypts the infile with a provided password, and saves the plaintext to the outfile, if no outfile is provided, the infile will decrypted in place"), 
-                                             ("help", "", "Displays the help dialogue")];
-    println!("Available Commands:\n\t{0:10}{1:30}{2}", "Command:", "Arguments:", "Description:");
+                                             ("help", "", "Displays the help dialogue"),
+                                             ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!")];
+    println!("Available Commands:\n\t{0:15}{1:30}{2}", "Command:", "Arguments:", "Description:");
     for i in commands{
-        println!("\t{0:10}{1:30}{2}", i.0, i.1, i.2);
+        println!("\t{0:15}{1:30}{2}", i.0, i.1, i.2);
     }
 }
 
@@ -31,6 +34,7 @@ fn get_filenames(args_list: &Vec<String>) -> (&String, &String){
     }
     (file_path, new_path)
 }
+
 fn main() {
     let args_list: Vec<String> = args().collect();
     // validate the length of the provided arguments
@@ -44,7 +48,7 @@ fn main() {
         "encrypt" => {
             // validate the count of arguments
             if args_list.len() < 3{
-                println!("This command takes at least one paramater");
+                println!("This command takes at least one parameter");
                 exit(1)
             }
             // get the paths to read from and write to
@@ -61,7 +65,7 @@ fn main() {
                 exit(0)
             }
             // attempt to encrypt the file
-            match cryptoutils::crypto_utils::encrypt_file(&password, paths.0, paths.1){
+            match crypto_utils::encrypt_file(&password, paths.0, paths.1){
                 Ok(_) => {println!("File encrypted successfully")}
                 Err(e) => {println!("{}", e.to_string())}
             }
@@ -69,7 +73,7 @@ fn main() {
         "decrypt" => {
             // validate the count of arguments
             if args_list.len() < 3{
-                println!("This command takes at least one paramater");
+                println!("This command takes at least one parameter");
                 exit(1)
             }
             // get the paths to read from and write to
@@ -79,8 +83,31 @@ fn main() {
             stdout().flush().unwrap();
             let password = read_password().unwrap();
             // attempt to decrypt the file
-            match cryptoutils::crypto_utils::decrypt_file(&password, paths.0, paths.1){
+            match crypto_utils::decrypt_file(&password, paths.0, paths.1){
                 Ok(_) => {println!("File decrypted successfully")}
+                Err(e) => {println!("{}", e.to_string())}
+            }
+        }
+        "export-key" => {
+            // validate the count of arguments
+            if args_list.len() != 4{
+                println!("This command exactly two parameters");
+                exit(1)
+            }
+            // ensure the user is sure they want to export the file's key
+            println!("This will store the encryption key for \"{}\" to \"{}\".\nIT IS HIGHLY IMPORTANT TO STORE THIS KEY SECURELY! Are you sure you'd like to export the key? (y/n)", args_list[2], args_list[3]);
+            let mut response: String = String::new();
+            stdin().read_line(&mut response).expect("Failed to read the response");
+            if response.trim().to_lowercase() != "y".to_string(){
+                exit(0)
+            }
+            // get the password
+            print!("File Password: ");
+            stdout().flush().unwrap();
+            let password = read_password().unwrap();
+            // attempt to run the opperation
+            match crypto_utils::export_key(&password, &args_list[2], &args_list[3]){
+                Ok(_) => {println!("Key was exported succesfully")}
                 Err(e) => {println!("{}", e.to_string())}
             }
         }
