@@ -9,6 +9,25 @@ pub mod crypto_utils{
     const NONCE_SIZE: usize = 12;
     const HEADER_SIZE: usize = SALT_SIZE + HASH_SIZE + NONCE_SIZE;
 
+    // validates a password given a key checksum and returns the key if the password is correct, otherwise returns an error
+    fn get_key(password: &String, salt: &[u8], checksum: &[u8]) ->  Result<Vec<u8>, std::io::Error>{
+        // generate a key from the password and salt
+        let mut key_hash = Sha256::new();
+        key_hash.update(password);
+        key_hash.update(salt);
+        let key_bytes = key_hash.finalize().to_vec();
+        // create a hash to check against from that key
+        let mut checksum_hash = Sha256::new();
+        checksum_hash.update(&key_bytes);
+        // validate the checksum
+        if checksum_hash.finalize().as_slice() != checksum{
+            Err(std::io::Error::new(ErrorKind::InvalidInput, "Incorrect Password"))
+        }
+        else{
+            Ok(key_bytes)
+        }
+    }
+
     pub fn encrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
         // generate a random salt
         let mut salt: [u8; SALT_SIZE] = [0; SALT_SIZE];
@@ -52,16 +71,8 @@ pub mod crypto_utils{
         let checksum = &contents[SALT_SIZE..HASH_SIZE+SALT_SIZE];
         let nonce = &contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE];
         let ciphertext = &contents[HEADER_SIZE..];
-        // validate the provided password
-        let mut key_hash = Sha256::new();
-        key_hash.update(password);
-        key_hash.update(salt);
-        let key_bytes = key_hash.finalize().to_vec();
-        let mut checksum_hash = Sha256::new();
-        checksum_hash.update(&key_bytes);
-        if checksum_hash.finalize().as_slice() != checksum{
-            return  Err(std::io::Error::new(ErrorKind::InvalidInput, "Incorrect Password"));
-        }
+        // validate the provided password and get the key
+        let key_bytes = get_key(password, salt, checksum)?;
         // create the cipher
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
         let aes_cipher = Aes256Gcm::new(aes_key);
