@@ -1,4 +1,4 @@
-use std::{env::args, io::{stdin, stdout, Write}, path::Path, process::exit};
+use std::{env::args, fs, io::{stdin, stdout, Write}, path::Path, process::exit};
 use rpassword::read_password;
 
 use crate::cryptoutils::crypto_utils;
@@ -47,7 +47,7 @@ fn main() {
     let args_list: Vec<String> = args().collect();
     // validate the length of the provided arguments
     if args_list.len() < 2{
-        println!("This program takes at least one argument");
+        println!("This program takes at least one parameter");
         print_help();
         exit(0);
     }   
@@ -79,19 +79,40 @@ fn main() {
                 println!("This command takes at least one parameter");
                 exit(1)
             }
-            // get the paths to read from and write to
             let paths = get_filenames(&args_list);
-            let password = get_password("File Password");
-            // attempt to decrypt the file
-            match crypto_utils::decrypt_file(&password, paths.0, paths.1){
-                Ok(_) => {println!("File decrypted successfully")}
-                Err(e) => {println!("{}", e.to_string())}
-            }
+            // give user five attempts to decrypt the data
+            let mut tries = 5;
+            while tries > 0{
+                let password = get_password("File Password");
+                // attempt to decrypt the file
+                match crypto_utils::decrypt_file(&password, paths.0, paths.1){
+                    Ok(_) => {
+                        println!("File decrypted successfully");
+                        return
+                    }
+                    Err(e) => {
+                        tries -= 1;
+                        if tries > 1{
+                            println!("{}\n{} attempts remaining", e.to_string(), tries);
+                        }
+                        else{
+                            match tries{
+                                1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
+                                0 => {
+                                    fs::remove_file(paths.0).expect("Failed to delete the file");
+                                    println!("File erased!")
+                                }
+                                _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                            }
+                        }
+                    }
+                }
+            }            
         }
         "export-key" => {
             // validate the count of arguments
             if args_list.len() != 4{
-                println!("This command exactly two parameters");
+                println!("This command takes exactly two parameters");
                 exit(1)
             }
             // ensure the user is sure they want to export the file's key
@@ -111,7 +132,7 @@ fn main() {
         "recover" => {
             // validate the count of arguments
             if args_list.len() != 4{
-                println!("This command exactly two parameters");
+                println!("This command takes exactly two parameters");
                 exit(1)
             }
             let password = get_password("Set a new password for the file");
