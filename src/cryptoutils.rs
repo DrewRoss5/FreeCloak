@@ -10,8 +10,30 @@ pub mod crypto_utils{
     const NONCE_SIZE: usize = 12;
     const HEADER_SIZE: usize = SALT_SIZE + HASH_SIZE + NONCE_SIZE;
 
+    // constant indexes 
+    const SALT_POS: usize = 0;
+    const CHECKSUM_POS: usize = 1;
+    const NONCE_POS: usize = 2;
+    const CIPHERTEXT_POS: usize = 3; 
+
+    // validates and reads an encrypted file, returning the salt, checksum, nonce and ciphertext
+    fn parse_encrypted_file(file_path: &String) -> Result<[Vec<u8>; 4], std::io::Error>{
+        // ensure the provided file path exists 
+        if !path::Path::new(file_path).is_file(){
+            return Err(std::io::Error::new(ErrorKind::NotFound, "Input file not found"));
+        }
+        // read the file and verify it's the correct length
+        let contents = fs::read(file_path)?;
+        if contents.len() < HEADER_SIZE + 1{
+            return Err(std::io::Error::new(ErrorKind::InvalidData, "Invalid Input File"));
+        }
+        // parse the file into its components and return them
+        Ok([contents[..SALT_SIZE].to_vec(), contents[SALT_SIZE..SALT_SIZE+HASH_SIZE].to_vec(), contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE].to_vec(), contents[HEADER_SIZE..].to_vec()])
+        
+    }
+
     // validates a password given a key checksum and returns the key if the password is correct, otherwise returns an error
-    fn get_key(password: &String, salt: &[u8], checksum: &[u8]) ->  Result<Vec<u8>, std::io::Error>{
+    fn get_key(password: &String, salt: &Vec<u8>, checksum: &Vec<u8>) ->  Result<Vec<u8>, std::io::Error>{
         // generate a key from the password and salt
         let mut key_hash = Sha256::new();
         key_hash.update(password);
@@ -66,20 +88,15 @@ pub mod crypto_utils{
     }
 
     pub fn decrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
-        let contents = fs::read(file_path)?;
-        // seperate the file into its components
-        let salt = &contents[..SALT_SIZE];
-        let checksum = &contents[SALT_SIZE..HASH_SIZE+SALT_SIZE];
-        let nonce = &contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE];
-        let ciphertext = &contents[HEADER_SIZE..];
+        let contents = parse_encrypted_file(&file_path)?;
         // validate the provided password and get the key
-        let key_bytes = get_key(password, salt, checksum)?;
+        let key_bytes = get_key(password, &contents[SALT_POS], &contents[CHECKSUM_POS])?;
         // create the cipher
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
         let aes_cipher = Aes256Gcm::new(aes_key);
         // attempt to decrypt the file
         let plaintext: Vec<u8>;
-        match aes_cipher.decrypt(nonce.into(), ciphertext){
+        match aes_cipher.decrypt(contents[NONCE_POS].as_slice().into(), contents[CIPHERTEXT_POS].as_slice()){
             Ok(plain) => {plaintext = plain}
             Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to decrypt ciphertext"))}
         }
@@ -93,12 +110,9 @@ pub mod crypto_utils{
         if !path::Path::new(file_path).is_file(){
             return Err(std::io::Error::new(ErrorKind::InvalidInput, "Invalid file path"))
         }
-        // read the file's key checksum and salt (the nonce is irrelevant for this function)
-        let contents = fs::read(file_path)?;
-        let salt = &contents[..SALT_SIZE];
-        let checksum = &contents[SALT_SIZE..HASH_SIZE+SALT_SIZE];
+        let contents = parse_encrypted_file(&file_path)?;
         // validate the password and write the key to the file if its valid
-        let key_bytes = get_key(password, salt, checksum)?;
+        let key_bytes = get_key(password, &contents[SALT_POS], &contents[CHECKSUM_POS])?;
         fs::write(key_path, key_bytes)?;
         Ok(())
     }
@@ -118,17 +132,10 @@ pub mod crypto_utils{
         // create an AES cipher
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
         let aes_cipher = Aes256Gcm::new(aes_key);
-        // read the ciphertext and nonce
-        let contents: Vec<u8>;
-        match fs::read(infile){
-            Ok(file_contents) => {contents = file_contents}
-            Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "The input file cannot be found"))}
-        }
-        let ciphertext = &contents[HEADER_SIZE..];
-        // attempt to decrypt the ciphertext
-        let nonce = &contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE];
+        // read the file
+        let contents = parse_encrypted_file(infile)?;
         let plaintext: Vec<u8>;
-        match aes_cipher.decrypt(nonce.into(), ciphertext){
+        match aes_cipher.decrypt(contents[NONCE_POS].as_slice().into(), contents[CIPHERTEXT_POS].as_slice()){
             Ok(plain) => {plaintext = plain}
             Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to recover the file..."))}
         }
