@@ -9,8 +9,7 @@ While this tool uses AES256-GCM encryption, and cryptographically secure numbers
 ## Roadmap/ToDo
 <ul>
   <li>Add the ability to encrypt/decrypt multiple files at once</li>
-  <li>Add the ability to export AES Keys</li>
-  <li>Allow users to use key backups to decrypt files in the event they forget their password</li>
+  <li>Make files automatically delete after five failed decryption attempts</li>
 </ul>
 
 ## Usage
