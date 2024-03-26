@@ -28,11 +28,6 @@ fn get_filenames(args_list: &Vec<String>) -> (&String, &String){
     else{
         new_path = &args_list[3]
     }
-    // ensure the provided file exists
-    if !Path::new(file_path).is_file(){
-        println!("Error - No input file with the provided name");
-        exit(0)
-    }
     (file_path, new_path)
 }
 
