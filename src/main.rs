@@ -9,8 +9,9 @@ pub mod cryptoutils;
 fn print_help(){
     let commands = [("encrypt", "[infile] [outfile OPTIONAL]", "Encrypts the infile with a password and saves the ciphertext to the outfile, if no outfile is provided, infile will be encrypted in place"), 
                                              ("decrypt", "[infile] [outfile OPTIONAL]", "Decrypts the infile with a provided password, and saves the plaintext to the outfile, if no outfile is provided, the infile will decrypted in place"), 
-                                             ("help", "", "Displays the help dialogue"),
-                                             ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!")];
+                                             ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
+                                             ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
+                                             ("help", "", "Displays the help dialogue")];
     println!("Available Commands:\n\t{0:15}{1:30}{2}", "Command:", "Arguments:", "Description:");
     for i in commands{
         println!("\t{0:15}{1:30}{2}", i.0, i.1, i.2);
