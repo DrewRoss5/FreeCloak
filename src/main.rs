@@ -35,6 +35,13 @@ fn get_filenames(args_list: &Vec<String>) -> (&String, &String){
     (file_path, new_path)
 }
 
+// prints a prompt and recieves a password from the command line 
+fn get_password(prompt: &'static str) -> String{
+    print!("{}: ", prompt);
+    stdout().flush().unwrap();
+    read_password().unwrap()
+}
+
 fn main() {
     let args_list: Vec<String> = args().collect();
     // validate the length of the provided arguments
@@ -53,13 +60,8 @@ fn main() {
             }
             // get the paths to read from and write to
             let paths = get_filenames(&args_list);
-            // get the password
-            print!("Set a file password: ");
-            stdout().flush().unwrap();
-            let password = read_password().unwrap();
-            print!("Confirm: ");
-            stdout().flush().unwrap();
-            let password_conf = read_password().unwrap();
+            let password = get_password("Set a file password");
+            let password_conf  = get_password("Confirm");
             if password != password_conf{
                 println!("Password does match confirmation");
                 exit(0)
@@ -78,10 +80,7 @@ fn main() {
             }
             // get the paths to read from and write to
             let paths = get_filenames(&args_list);
-            // get the password
-            print!("File Password: ");
-            stdout().flush().unwrap();
-            let password = read_password().unwrap();
+            let password = get_password("File Password");
             // attempt to decrypt the file
             match crypto_utils::decrypt_file(&password, paths.0, paths.1){
                 Ok(_) => {println!("File decrypted successfully")}
@@ -101,14 +100,29 @@ fn main() {
             if response.trim().to_lowercase() != "y".to_string(){
                 exit(0)
             }
-            // get the password
-            print!("File Password: ");
-            stdout().flush().unwrap();
-            let password = read_password().unwrap();
+            let password = get_password("File Password");
             // attempt to run the opperation
             match crypto_utils::export_key(&password, &args_list[2], &args_list[3]){
                 Ok(_) => {println!("Key was exported succesfully")}
                 Err(e) => {println!("{}", e.to_string())}
+            }
+        }
+        "recover" => {
+            // validate the count of arguments
+            if args_list.len() != 4{
+                println!("This command exactly two parameters");
+                exit(1)
+            }
+            let password = get_password("Set a new password for the file");
+            let password_conf = get_password("Confirm");
+            if password != password_conf{
+                println!("Password does not match confirmation");
+                exit(1);
+            }
+            // attempt to recover the file
+            match crypto_utils::recover_file(&args_list[2], &args_list[3], &password){
+                Ok(_) => {println!("Success! The file has been recovered and re-encrypted with your new password.")}
+                Err(e) => {println!("{}", e)}
             }
         }
         "help" => {print_help()}

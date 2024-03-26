@@ -5,6 +5,7 @@ pub mod crypto_utils{
 
     // constant sizes
     const HASH_SIZE: usize = 32;
+    const KEY_SIZE: usize = 32;
     const SALT_SIZE: usize = 16;
     const NONCE_SIZE: usize = 12;
     const HEADER_SIZE: usize = SALT_SIZE + HASH_SIZE + NONCE_SIZE;
@@ -99,6 +100,43 @@ pub mod crypto_utils{
         // validate the password and write the key to the file if its valid
         let key_bytes = get_key(password, salt, checksum)?;
         fs::write(key_path, key_bytes)?;
+        Ok(())
+    }
+
+    // recovers an encrypted file with the recovery key file, and re-encrypts it with a new password
+    pub fn recover_file(infile: &String, key_file: &String, new_password: &String) -> Result<(), std::io::Error>{
+        // load the key file
+        let key_bytes: Vec<u8>;
+        match fs::read(key_file) {
+            Ok(key) => {key_bytes = key}
+            Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to read the key file"))}
+        }
+        // validate the size of the key
+        if key_bytes.len() != KEY_SIZE{
+            return Err(std::io::Error::new(ErrorKind::InvalidData, "The key file is invalid"))
+        }
+        // create an AES cipher
+        let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
+        let aes_cipher = Aes256Gcm::new(aes_key);
+        // read the ciphertext and nonce
+        let contents: Vec<u8>;
+        match fs::read(infile){
+            Ok(file_contents) => {contents = file_contents}
+            Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "The input file cannot be found"))}
+        }
+        let ciphertext = &contents[HEADER_SIZE..];
+        // attempt to decrypt the ciphertext
+        let nonce = &contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE];
+        let plaintext: Vec<u8>;
+        match aes_cipher.decrypt(nonce.into(), ciphertext){
+            Ok(plain) => {plaintext = plain}
+            Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to recover the file..."))}
+        }
+        // write the plaintext to a temporary file 
+        fs::write("tmp__", plaintext)?;
+        // re-encrypt the original file with a new password
+        encrypt_file(&new_password, &"tmp__".to_string(), infile)?;
+        fs::remove_file("tmp__")?;
         Ok(())
     }
 }
