@@ -29,4 +29,6 @@ To run the program, clone this repo and use the `cargo build` or `cargo run` com
   <dd>Attempts to recover a file by using a key file created with <code>export-key</code>, and prompts the user to set a new password to encrypt the file with. This command is the only method of data recovery in the event a user forgets their password, as such it may be advisable to create a key backup after intially encrypting a file.<br><b>Example:</b><br><code>cloak recover secrets.txt secretkey</code> will try to recover the
       contents of <code>secrets.txt</code> with the key contained in the file <code>secretkey</code> and allow the user to set a new password for the file.<br><b>Note:</b><br>Because changing a file's password generates an entirely new key, the existing keyfile will no longer work, and the key will need to be re-exported. 
   </dd>
+  <dt>reset-pw [infile]</dt>
+  <dd>Changes the password of the encrypted infile. This differs from the recover command, as it doesn't use a key file, and requires to user to know a file's password.</dd>
 </dl>
