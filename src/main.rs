@@ -86,19 +86,25 @@ fn main() {
                         return
                     }
                     Err(e) => {
-                        tries -= 1;
-                        if tries > 1{
-                            println!("{}\n{} attempts remaining", e.to_string(), tries);
+                        if e.kind() == std::io::ErrorKind::InvalidData{
+                            tries -= 1;
+                            if tries > 1{
+                                println!("{}\n{} attempts remaining", e.to_string(), tries);
+                            }
+                            else{
+                                match tries{
+                                    1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
+                                    0 => {
+                                        fs::remove_file(paths.0).expect("Failed to delete the file");
+                                        println!("File erased!")
+                                    }
+                                    _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                                }
+                            }
                         }
                         else{
-                            match tries{
-                                1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
-                                0 => {
-                                    fs::remove_file(paths.0).expect("Failed to delete the file");
-                                    println!("File erased!")
-                                }
-                                _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
-                            }
+                            println!("{}", e.to_string());
+                            exit(0)
                         }
                     }
                 }

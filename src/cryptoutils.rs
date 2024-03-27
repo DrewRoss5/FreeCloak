@@ -25,7 +25,7 @@ pub mod crypto_utils{
         // read the file and verify it's the correct length
         let contents = fs::read(file_path)?;
         if contents.len() < HEADER_SIZE + 1{
-            return Err(std::io::Error::new(ErrorKind::InvalidData, "Invalid Input File"));
+            return Err(std::io::Error::new(ErrorKind::Other, "Invalid Input File"));
         }
         // parse the file into its components and return them
         Ok([contents[..SALT_SIZE].to_vec(), contents[SALT_SIZE..SALT_SIZE+HASH_SIZE].to_vec(), contents[SALT_SIZE+HASH_SIZE..HEADER_SIZE].to_vec(), contents[HEADER_SIZE..].to_vec()])
