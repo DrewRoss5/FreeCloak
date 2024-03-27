@@ -9,8 +9,6 @@ While this tool uses AES256-GCM encryption, and cryptographically secure random 
 ## Roadmap/ToDo
 <ul>
   <li>Add the ability to encrypt/decrypt multiple files at once</li>
-  <li>Make files automatically delete after five failed decryption attempts</li>
-  <li>Allow users to change file passwords without using the recover command</li>
 </ul>
 
 ## Usage
