@@ -11,6 +11,7 @@ fn print_help(){
                                              ("decrypt", "[infile] [outfile OPTIONAL]", "Decrypts the infile with a provided password, and saves the plaintext to the outfile, if no outfile is provided, the infile will decrypted in place"), 
                                              ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
                                              ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
+                                             ("reset-pw", "[infile]", "Changes the password of an encrypted file"),
                                              ("help", "", "Displays the help dialogue")];
     println!("Available Commands:\n\t{0:15}{1:30}{2}", "Command:", "Arguments:", "Description:");
     for i in commands{
@@ -52,7 +53,7 @@ fn main() {
             // validate the count of arguments
             if args_list.len() < 3{
                 println!("This command takes at least one parameter");
-                exit(1)
+                exit(0)
             }
             // get the paths to read from and write to
             let paths = get_filenames(&args_list);
@@ -72,7 +73,7 @@ fn main() {
             // validate the count of arguments
             if args_list.len() < 3{
                 println!("This command takes at least one parameter");
-                exit(1)
+                exit(0)
             }
             let paths = get_filenames(&args_list);
             // give user five attempts to decrypt the data
@@ -86,7 +87,7 @@ fn main() {
                         return
                     }
                     Err(e) => {
-                        if e.kind() == std::io::ErrorKind::InvalidData{
+                        if e.kind() == std::io::ErrorKind::InvalidInput{
                             tries -= 1;
                             if tries > 1{
                                 println!("{}\n{} attempts remaining", e.to_string(), tries);
@@ -114,7 +115,7 @@ fn main() {
             // validate the count of arguments
             if args_list.len() != 4{
                 println!("This command takes exactly two parameters");
-                exit(1)
+                exit(0)
             }
             // ensure the user is sure they want to export the file's key
             println!("This will store the encryption key for \"{}\" to \"{}\".\nIT IS HIGHLY IMPORTANT TO STORE THIS KEY SECURELY! Are you sure you'd like to export the key? (y/n)", args_list[2], args_list[3]);
@@ -134,18 +135,37 @@ fn main() {
             // validate the count of arguments
             if args_list.len() != 4{
                 println!("This command takes exactly two parameters");
-                exit(1)
+                exit(0)
             }
             let password = get_password("Set a new password for the file");
             let password_conf = get_password("Confirm");
             if password != password_conf{
                 println!("Password does not match confirmation");
-                exit(1);
+                exit(0);
             }
             // attempt to recover the file
             match crypto_utils::recover_file(&args_list[2], &args_list[3], &password){
                 Ok(_) => {println!("Success! The file has been recovered and re-encrypted with your new password.")}
                 Err(e) => {println!("{}", e)}
+            }
+        }
+        "reset-pw" => {
+            // validate the count of arguments
+            if args_list.len() != 3{
+                println!("This command takes exactly one parameter");
+                exit(0)
+            }
+            let password = get_password("Current file password");
+            let new_password = get_password("New file password");
+            let conf = get_password("Confirm new password");
+            if new_password != conf{
+                println!("New password does match confirmation");
+                exit(0)
+            }
+            // attempt to update the password
+            match crypto_utils::change_password(&password, &new_password, &args_list[2]){
+                Ok(_) => {println!("File password changed successfully")}
+                Err(e) => {println!("{}", e.to_string())}
             }
         }
         "help" => {print_help()}
