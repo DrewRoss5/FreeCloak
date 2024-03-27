@@ -119,6 +119,7 @@ pub mod crypto_utils{
 
     // recovers an encrypted file with the recovery key file, and re-encrypts it with a new password
     pub fn recover_file(infile: &String, key_file: &String, new_password: &String) -> Result<(), std::io::Error>{
+        let tmp_path = &"tmp__".to_string();
         // load the key file
         let key_bytes: Vec<u8>;
         match fs::read(key_file) {
@@ -140,10 +141,13 @@ pub mod crypto_utils{
             Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to recover the file..."))}
         }
         // write the plaintext to a temporary file 
-        fs::write("tmp__", plaintext)?;
+        fs::write(tmp_path, plaintext)?;
         // re-encrypt the original file with a new password
-        encrypt_file(&new_password, &"tmp__".to_string(), infile)?;
-        fs::remove_file("tmp__")?;
+        encrypt_file(&new_password, &tmp_path, infile)?;
+        // securely erase the tmp file by overwriting it with zeroes
+        let plaintext_len = fs::read(tmp_path)?.len();
+        fs::write(tmp_path,vec![0; plaintext_len + 1024])?;
+        fs::remove_file(tmp_path)?;
         Ok(())
     }
 
@@ -153,9 +157,9 @@ pub mod crypto_utils{
         decrypt_file(password, infile, tmp_path)?;
         // re-encrypt the file with a new password
         encrypt_file(new_password, tmp_path, infile)?;
-        // securely erase the tmp file
+        // securely erase the tmp file by overwriting it with zeroes
         let plaintext_len = fs::read(tmp_path)?.len();
-        fs::write("tmp__".to_string(),vec![0; plaintext_len + 1024])?;
+        fs::write(tmp_path,vec![0; plaintext_len + 1024])?;
         fs::remove_file(tmp_path)?;
         Ok(())
 
