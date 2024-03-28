@@ -1,4 +1,4 @@
-use std::{env::args, fs, io::{stdin, stdout, Write}, path::Path, process::exit};
+use std::{env::args, fs, io::{stdin, stdout, Write}, process::exit};
 use rpassword::read_password;
 
 use crate::cryptoutils::crypto_utils;
@@ -155,17 +155,41 @@ fn main() {
                 println!("This command takes exactly one parameter");
                 exit(0)
             }
-            let password = get_password("Current file password");
+            let mut tries = 5;
             let new_password = get_password("New file password");
             let conf = get_password("Confirm new password");
             if new_password != conf{
                 println!("New password does match confirmation");
                 exit(0)
             }
-            // attempt to update the password
-            match crypto_utils::change_password(&password, &new_password, &args_list[2]){
-                Ok(_) => {println!("File password changed successfully")}
-                Err(e) => {println!("{}", e.to_string())}
+            while tries > 0{
+                let password = get_password("Current file password");
+                // attempt to update the password
+                match crypto_utils::change_password(&password, &new_password, &args_list[2]){
+                    Ok(_) => {println!("File password changed successfully")}
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::InvalidInput{
+                            tries -= 1;
+                            if tries > 1{
+                                println!("{}\n{} attempts remaining", e.to_string(), tries);
+                            }
+                            else{
+                                match tries{
+                                    1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
+                                    0 => {
+                                        fs::remove_file(&args_list[2]).expect("Failed to delete the file");
+                                        println!("File erased!")
+                                    }
+                                    _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                                }
+                            }
+                        }
+                        else{
+                            println!("{}", e.to_string());
+                            exit(0)
+                        }
+                    }
+                }
             }
         }
         "help" => {print_help()}
