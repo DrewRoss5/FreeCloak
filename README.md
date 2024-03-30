@@ -12,9 +12,9 @@ To run the program, clone this repo and use the `cargo build` or `cargo run` com
 <dl>
   <dt>help</dt>
   <dd>Displays the help dialogue.</dd>
-  <dt>encrypt [infile]]</dt>
+  <dt>encrypt [file(s)]</dt>
   <dd>Encrypts the provided file(s) in place with user-provided password(s).</dd>
-  <dt>decrypt [infile]</dt>
+  <dt>decrypt [file(s)]</dt>
   <dd>Decrypts the provided file(s) in place with user-provided password(s).</dd>
   <dt>export-key [infile] [key-file]</dt>
   <dd>
