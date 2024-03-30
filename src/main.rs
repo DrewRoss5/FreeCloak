@@ -1,4 +1,4 @@
-use std::{env::args, fs, io::{stdin, stdout, Write}, process::exit};
+use std::{env::args, fs, io::{stdin, stdout, Write}, path, process::exit};
 use rpassword::read_password;
 
 use crate::cryptoutils::crypto_utils;
@@ -7,12 +7,13 @@ pub mod cryptoutils;
 
 // prints the help text
 fn print_help(){
-    let commands = [("encrypt", "[infile] [outfile OPTIONAL]", "Encrypts the infile with a password and saves the ciphertext to the outfile, if no outfile is provided, infile will be encrypted in place"), 
-                                             ("decrypt", "[infile] [outfile OPTIONAL]", "Decrypts the infile with a provided password, and saves the plaintext to the outfile, if no outfile is provided, the infile will decrypted in place"), 
-                                             ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
-                                             ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
-                                             ("reset-pw", "[infile]", "Changes the password of an encrypted file"),
-                                             ("help", "", "Displays the help dialogue")];
+    let commands = [("encrypt", "[file(s)]", "Encrypts the provided file(s) with in place with a provided password"), 
+                    ("decrypt", "[file(s)]", "Decrypts the provided file(s) with in place with a provided password"), 
+                    ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
+                    ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
+                    ("reset-pw", "[infile]", "Changes the password of an encrypted file"),
+                    ("help", "", "Displays the help dialogue")
+                   ];
     println!("Available Commands:\n\t{0:15}{1:30}{2}", "Command:", "Arguments:", "Description:");
     for i in commands{
         println!("\t{0:15}{1:30}{2}", i.0, i.1, i.2);
@@ -20,20 +21,22 @@ fn print_help(){
 }
 
 // returns the name of the file to read from and write to, given the arg list 
-fn get_filenames(args_list: &Vec<String>) -> (&String, &String){
-    let file_path = &args_list[2];
-    let new_path: &String;
-    if args_list.len() == 3{
-        new_path = file_path
+fn get_filenames(args_list: &Vec<String>) -> Result<Vec<String>, std::io::Error>{
+    let mut paths: Vec<String> = Vec::new();
+    for i in &args_list[2..]{
+        if path::Path::new(i).is_file(){
+            paths.push(i.to_string());
+        }
+        else{
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("The file path \"{}\" is invalid", i.as_str())));
+        }
     }
-    else{
-        new_path = &args_list[3]
-    }
-    (file_path, new_path)
+    Ok(paths)
 }
 
+
 // prints a prompt and recieves a password from the command line 
-fn get_password(prompt: &'static str) -> String{
+fn get_password(prompt: &str) -> String{
     print!("{}: ", prompt);
     stdout().flush().unwrap();
     read_password().unwrap()
@@ -56,56 +59,71 @@ fn main() {
                 exit(0)
             }
             // get the paths to read from and write to
-            let paths = get_filenames(&args_list);
-            let password = get_password("Set a file password");
-            let password_conf  = get_password("Confirm");
-            if password != password_conf{
-                println!("Password does match confirmation");
-                exit(0)
+            let paths: Vec<String>;
+            match  get_filenames(&args_list){
+                Ok(paths_vec) => {paths = paths_vec}
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    exit(0)
+                
+                }
             }
             // attempt to encrypt the file
-            match crypto_utils::encrypt_file(&password, paths.0, paths.1){
-                Ok(_) => {println!("File encrypted successfully")}
-                Err(e) => {println!("{}", e.to_string())}
+            for i in paths{
+                let password = get_password(format!("Set a password for {}", i).as_str()).to_string();
+                let password_conf  = get_password("Confirm");
+                if password != password_conf{
+                    println!("Password does match confirmation");
+                    exit(0)
+                }
+                match crypto_utils::encrypt_file(&password, &i, &i){
+                    Ok(_) => {println!("\"{}\" was encrypted successfully Password: {}", i, password)}
+                    Err(e) => {println!("Failed to encrypt {} - {}", i, e.to_string())}
+                }
             }
         }
         "decrypt" => {
-            // validate the count of arguments
-            if args_list.len() < 3{
-                println!("This command takes at least one parameter");
-                exit(0)
+            // get the paths to read from and write to
+            let paths: Vec<String>;
+            match  get_filenames(&args_list){
+                Ok(paths_vec) => {paths = paths_vec}
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    exit(0)
+                }
             }
-            let paths = get_filenames(&args_list);
             // give user five attempts to decrypt the data
-            let mut tries = 5;
-            while tries > 0{
-                let password = get_password("File Password");
-                // attempt to decrypt the file
-                match crypto_utils::decrypt_file(&password, paths.0, paths.1){
-                    Ok(_) => {
-                        println!("File decrypted successfully");
-                        return
-                    }
-                    Err(e) => {
-                        if e.kind() == std::io::ErrorKind::InvalidInput{
-                            tries -= 1;
-                            if tries > 1{
-                                println!("{}\n{} attempts remaining", e.to_string(), tries);
+      
+                for i in &paths{
+                    let mut tries = 5;
+                    while tries > 0{
+                        let password = get_password(&format!("File Password for {}", i));
+                        // attempt to decrypt the file
+                        match crypto_utils::decrypt_file(&password, &i, &i){
+                            Ok(_) => {
+                                tries = 0; // end the lopp
+                                println!("{} decrypted successfully", i)
                             }
-                            else{
-                                match tries{
-                                    1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
-                                    0 => {
-                                        fs::remove_file(paths.0).expect("Failed to delete the file");
-                                        println!("File erased!")
+                            Err(e) => {
+                                if e.kind() == std::io::ErrorKind::InvalidInput{
+                                    tries -= 1;
+                                    if tries > 1{
+                                        println!("{}\n{} attempts remaining", e.to_string(), tries);
                                     }
-                                    _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                                    else{
+                                        match tries{
+                                            1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
+                                            0 => {
+                                                fs::remove_file(i).expect("Failed to delete the file");
+                                                println!("File erased!")
+                                            }
+                                            _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        else{
-                            println!("{}", e.to_string());
-                            exit(0)
+                                else{
+                                    println!("{}", e.to_string());
+                                }
                         }
                     }
                 }
@@ -199,3 +217,4 @@ fn main() {
         }
     }
 }
+
