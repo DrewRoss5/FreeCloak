@@ -77,7 +77,7 @@ fn main() {
                     exit(0)
                 }
                 match crypto_utils::encrypt_file(&password, &i, &i){
-                    Ok(_) => {println!("\"{}\" was encrypted successfully Password: {}", i, password)}
+                    Ok(_) => {println!("\"{}\" was encrypted successfully", i, password)}
                     Err(e) => {println!("Failed to encrypt {} - {}", i, e.to_string())}
                 }
             }
