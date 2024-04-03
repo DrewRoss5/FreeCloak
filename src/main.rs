@@ -7,16 +7,18 @@ pub mod cryptoutils;
 
 // prints the help text
 fn print_help(){
-    let commands = [("encrypt", "[file(s)]", "Encrypts the provided file(s) with in place with a provided password"), 
-                    ("decrypt", "[file(s)]", "Decrypts the provided file(s) with in place with a provided password"), 
-                    ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
-                    ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
-                    ("reset-pw", "[infile]", "Changes the password of an encrypted file"),
-                    ("help", "", "Displays the help dialogue")
-                   ];
-    println!("Available Commands:\n\t{0:15}{1:30}{2}", "Command:", "Arguments:", "Description:");
+    let commands = [("generate-key", "[key file]", "Securely generates a 256 bit key and saves it to the provided file path. The key is stored in plaintext so it's HIGHLY IMPORTANT to store it securely"),
+                                             ("encrypt", "[file(s)]", "Encrypts the provided file(s) with in place with a provided password"), 
+                                             ("key-encrypt", "[plaintext file] [key file]", "Encrypts the plaintext with the key stored in the provided key file"),
+                                             ("decrypt", "[file(s)]", "Decrypts the provided file(s) with in place with a provided password"), 
+                                             ("key-decrypt", "[ciphertext file] [key file]", "Derypts the ciphertext with the key stored in the provided key file"),
+                                             ("export-key", "[infile] [key file]", "Exports the raw encryption key for infile to the provided key file. USE WITH CAUTION!"),
+                                             ("recover", "[infile] [key file]", "Recovers the encrypted infile with the key stored in the key file, and re-encrypts it with a new password"),
+                                             ("reset-pw", "[infile]", "Changes the password of an encrypted file"),
+                                             ("help", "", "Displays the help dialogue")];
+    println!("Available Commands:\n\t{0:22}{1:30}{2}", "Command:", "Arguments:", "Description:");
     for i in commands{
-        println!("\t{0:15}{1:30}{2}", i.0, i.1, i.2);
+        println!("\t{0:22}{1:30}{2}", i.0, i.1, i.2);
     }
 }
 
@@ -77,9 +79,20 @@ fn main() {
                     exit(0)
                 }
                 match crypto_utils::encrypt_file(&password, &i, &i){
-                    Ok(_) => {println!("\"{}\" was encrypted successfully", i, password)}
+                    Ok(_) => {println!("\"{}\" was encrypted successfully", i)}
                     Err(e) => {println!("Failed to encrypt {} - {}", i, e.to_string())}
                 }
+            }
+        }
+        "key-encrypt" => {
+            // validate the count of arguments
+            if args_list.len() != 4{
+                println!("This command accepts exactly two arguments")
+            }
+            // attempt to encrypt the file
+            match crypto_utils::encrypt_with_key(&args_list[2], &args_list[2], &args_list[3]){
+                Ok(_) => {println!("File encrypted successfully")}
+                Err(e) => {println!("{}", e.to_string())}
             }
         }
         "decrypt" => {
@@ -93,41 +106,63 @@ fn main() {
                 }
             }
             // give user five attempts to decrypt the data
-      
-                for i in &paths{
-                    let mut tries = 5;
-                    while tries > 0{
-                        let password = get_password(&format!("File Password for {}", i));
-                        // attempt to decrypt the file
-                        match crypto_utils::decrypt_file(&password, &i, &i){
-                            Ok(_) => {
-                                tries = 0; // end the lopp
-                                println!("{} decrypted successfully", i)
-                            }
-                            Err(e) => {
-                                if e.kind() == std::io::ErrorKind::InvalidInput{
-                                    tries -= 1;
-                                    if tries > 1{
-                                        println!("{}\n{} attempts remaining", e.to_string(), tries);
-                                    }
-                                    else{
-                                        match tries{
-                                            1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
-                                            0 => {
-                                                fs::remove_file(i).expect("Failed to delete the file");
-                                                println!("File erased!")
-                                            }
-                                            _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
-                                        }
-                                    }
+            for i in &paths{
+                let mut tries = 5;
+                while tries > 0{
+                    let password = get_password(&format!("File Password for {}", i));
+                    // attempt to decrypt the file
+                    match crypto_utils::decrypt_file(&password, &i, &i){
+                        Ok(_) => {
+                            tries = 0; // end the lopp
+                            println!("{} decrypted successfully", i)
+                        }
+                        Err(e) => {
+                            if e.kind() == std::io::ErrorKind::InvalidInput{
+                                tries -= 1;
+                                if tries > 1{
+                                    println!("{}\n{} attempts remaining", e.to_string(), tries);
                                 }
                                 else{
-                                    println!("{}", e.to_string());
+                                    match tries{
+                                        1 => {println!("{}\n1 attempt remaining!\nWARNING: IF YOU INPUT AN INCORRECT PASSWORD AGAIN, THE FILE WILL BE DESTROYED", e.to_string())}
+                                        0 => {
+                                            fs::remove_file(i).expect("Failed to delete the file");
+                                            println!("File erased!")
+                                        }
+                                        _ => {} // tries will never be anything other than one or zero. This is here to stop the complier from complaining
+                                    }
                                 }
+                            }
+                            else{
+                                println!("{}", e.to_string());
+                            }
                         }
                     }
                 }
             }            
+        }
+        "key-decrypt" => {
+            // validate the count of arguments
+            if args_list.len() != 4{
+                println!("This command accepts exactly two arguments")
+            }
+            // attempt to encrypt the file
+            match crypto_utils::decrypt_with_key(&args_list[2], &args_list[2], &args_list[3]){
+                Ok(_) => {println!("File encrypted successfully")}
+                Err(e) => {println!("{}", e.to_string())}
+            }
+        }
+        "generate-key" => {
+            // validate the count of arguments
+            if args_list.len() != 3{
+                println!("This command takes exactly one parameter");
+                exit(0)
+            }
+            // attempt to generate the key
+            match crypto_utils::generate_key_file(&args_list[2]){
+                Ok(_) => {println!("Key generated succesfully")}
+                Err(e) => {println!("{}", e.to_string())}
+            }
         }
         "export-key" => {
             // validate the count of arguments
@@ -217,4 +252,3 @@ fn main() {
         }
     }
 }
-

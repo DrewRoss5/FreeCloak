@@ -22,12 +22,11 @@ pub mod crypto_utils{
         }
         // read the file and verify it's the correct length
         let contents = fs::read(file_path)?;
-        if contents.len() < HEADER_SIZE + 1{
+        if contents.len() < HEADER_SIZE + 16{
             return Err(std::io::Error::new(ErrorKind::Other, "Invalid Input File"));
         }
         // parse the file into its components and return them
         Ok([contents[..SALT_SIZE].to_vec(), contents[SALT_SIZE..HEADER_SIZE].to_vec(), contents[HEADER_SIZE..].to_vec()])
-        
     }
 
     // generates a key by hashing a password with a salt
@@ -37,6 +36,13 @@ pub mod crypto_utils{
         key_hash.update(password);
         key_hash.update(salt);
         key_hash.finalize().to_vec()
+    }
+
+    // generates a securely random 256-bit key
+    pub fn generate_key_file(file_path: &String) -> Result<(), std::io::Error>{
+        let mut key_bytes: [u8; 32] = [0; 32];
+        OsRng.fill_bytes(&mut key_bytes);
+        fs::write(file_path, key_bytes)
     }
 
     pub fn encrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
@@ -71,6 +77,37 @@ pub mod crypto_utils{
         Ok(())
     }
 
+    // encrypt a file with a key stored in a keyfile as opposed to with a password
+    pub fn encrypt_with_key(plaintext_path: &String, ciphertext_path: &String, key_path: &String) -> Result<(), std::io::Error>{
+        // load the plaintext
+        let plaintext = fs::read(plaintext_path)?;
+        // load and validate the key
+        let key_bytes = fs::read(key_path)?;
+        if key_bytes.len() != 32{
+            return Err(std::io::Error::new(ErrorKind::InvalidInput, "Invalid Key File"))
+        }
+        // generate a nonce
+        let nonce = Aes256Gcm::generate_nonce(OsRng);
+        // create a cipher and encrypt the plaintext
+        let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
+        let aes_cipher = Aes256Gcm::new(aes_key);
+        let mut ciphertext: Vec<u8>;
+        match aes_cipher.encrypt(&nonce, plaintext.as_slice()){
+            Ok(cipher) => {ciphertext = cipher}
+            Err(_) => {return Err(std::io::Error::new(ErrorKind::Other, "Failed to encrypt the file"))}
+        }
+        // generate random bytes to hold the place of a salt (this looks indistinguishable from a real salt to attackets)
+        let mut salt_placeholder: [u8; 16] = [0; 16];
+        OsRng.fill_bytes(&mut salt_placeholder);
+        // create a vector for the new contents of the file
+        let mut cipher_contents: Vec<u8> = Vec::new();
+        cipher_contents.append(&mut salt_placeholder.to_vec());
+        cipher_contents.append(&mut nonce.to_vec());
+        cipher_contents.append(&mut ciphertext);
+        // save the ciphertext
+        fs::write(ciphertext_path, cipher_contents)
+    }   
+
     pub fn decrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
         let contents = parse_encrypted_file(&file_path)?;
         // validate the provided password and get the key
@@ -84,8 +121,27 @@ pub mod crypto_utils{
             Ok(plain) => {plaintext = plain}
             Err(_) => {return Err(std::io::Error::new(ErrorKind::InvalidInput, "Incorrect Password"))}
         }
-        fs::write(new_path, plaintext)?;
-        Ok(())
+        fs::write(new_path, plaintext)
+    }
+
+    // decrypt a file with a key stored in a keyfile as opposed to with a password
+    pub fn decrypt_with_key(ciphertext_path: &String, plaintext_path: &String, key_path: &String) -> Result<(), std::io::Error>{
+        let contents = parse_encrypted_file(ciphertext_path)?;
+        // load and validate the key
+        let key_bytes = fs::read(key_path)?;
+        if key_bytes.len() != 32{
+            return Err(std::io::Error::new(ErrorKind::InvalidInput, "Invalid Key File"))
+        }
+        // create the cipher
+        let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
+        let aes_cipher = Aes256Gcm::new(aes_key); 
+        // attempt to decrypt the ciphertext
+        let plaintext: Vec<u8>;
+        match aes_cipher.decrypt(contents[NONCE_POS].as_slice().into(), contents[CIPHERTEXT_POS].as_slice()){
+            Ok(plain) => {plaintext = plain}
+            Err(_) => {return Err(std::io::Error::new(ErrorKind::InvalidInput, "Incorrect Key File"))}
+        }      
+        fs::write(plaintext_path, plaintext)
     }
 
     // exports the key of a file to a predetermined path
@@ -148,6 +204,5 @@ pub mod crypto_utils{
         fs::write(tmp_path,vec![0; plaintext_len + 1024])?;
         fs::remove_file(tmp_path)?;
         Ok(())
-
     }
 }
