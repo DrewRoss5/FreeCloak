@@ -15,13 +15,13 @@ pub mod crypto_utils{
     const CIPHERTEXT_POS: usize = 2; 
 
     // validates and reads an encrypted file, returning the salt, nonce and ciphertext
-    fn parse_encrypted_file(file_path: &String) -> Result<[Vec<u8>; 3], std::io::Error>{
+    fn parse_encrypted_file(ciphertext_path: &String) -> Result<[Vec<u8>; 3], std::io::Error>{
         // ensure the provided file path exists 
-        if !path::Path::new(file_path).is_file(){
+        if !path::Path::new(ciphertext_path).is_file(){
             return Err(std::io::Error::new(ErrorKind::NotFound, "Input file not found"));
         }
         // read the file and verify it's the correct length
-        let contents = fs::read(file_path)?;
+        let contents = fs::read(ciphertext_path)?;
         if contents.len() < HEADER_SIZE + 16{
             return Err(std::io::Error::new(ErrorKind::Other, "Invalid Input File"));
         }
@@ -39,13 +39,13 @@ pub mod crypto_utils{
     }
 
     // generates a securely random 256-bit key
-    pub fn generate_key_file(file_path: &String) -> Result<(), std::io::Error>{
+    pub fn generate_key_file(key_path: &String) -> Result<(), std::io::Error>{
         let mut key_bytes: [u8; 32] = [0; 32];
         OsRng.fill_bytes(&mut key_bytes);
-        fs::write(file_path, key_bytes)
+        fs::write(key_path, key_bytes)
     }
 
-    pub fn encrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
+    pub fn encrypt_file(password: &String, ciphertext_path: &String, plaintext_path: &String) -> Result<(), std::io::Error>{
         // generate a random salt
         let mut salt: [u8; SALT_SIZE] = [0; SALT_SIZE];
         OsRng.fill_bytes(&mut salt);
@@ -58,7 +58,7 @@ pub mod crypto_utils{
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
         let aes_cipher = Aes256Gcm::new(aes_key);
         // read the file
-        let contents = fs::read(file_path)?;
+        let contents = fs::read(plaintext_path)?;
         // encrypt the contents
         Aes256Gcm::generate_nonce(OsRng);
         let mut ciphertext: Vec<u8>;
@@ -73,7 +73,7 @@ pub mod crypto_utils{
         cipher_contents.append(&mut nonce.to_vec());
         cipher_contents.append(&mut ciphertext);
         // write the encrypted contents
-        fs::write(new_path, &cipher_contents)?;
+        fs::write(ciphertext_path, &cipher_contents)?;
         Ok(())
     }
 
@@ -108,8 +108,8 @@ pub mod crypto_utils{
         fs::write(ciphertext_path, cipher_contents)
     }   
 
-    pub fn decrypt_file(password: &String, file_path: &String, new_path: &String) -> Result<(), std::io::Error>{
-        let contents = parse_encrypted_file(&file_path)?;
+    pub fn decrypt_file(password: &String, ciphertext_path: &String, plaintext_path: &String) -> Result<(), std::io::Error>{
+        let contents = parse_encrypted_file(&ciphertext_path)?;
         // validate the provided password and get the key
         let key_bytes = get_key(password, &contents[SALT_POS]);
         // create the cipher
@@ -121,7 +121,7 @@ pub mod crypto_utils{
             Ok(plain) => {plaintext = plain}
             Err(_) => {return Err(std::io::Error::new(ErrorKind::InvalidInput, "Incorrect Password"))}
         }
-        fs::write(new_path, plaintext)
+        fs::write(plaintext_path, plaintext)
     }
 
     // decrypt a file with a key stored in a keyfile as opposed to with a password
@@ -145,8 +145,8 @@ pub mod crypto_utils{
     }
 
     // exports the key of a file to a predetermined path
-    pub fn export_key(password: &String, file_path: &String, key_path: &String) -> Result<(), std::io::Error>{
-        let contents = parse_encrypted_file(&file_path)?;
+    pub fn export_key(password: &String, ciphertext_path: &String, key_path: &String) -> Result<(), std::io::Error>{
+        let contents = parse_encrypted_file(&ciphertext_path)?;
         let key_bytes = get_key(password, &contents[SALT_POS]);
         // create the cipher
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
@@ -160,7 +160,7 @@ pub mod crypto_utils{
     }
 
     // recovers an encrypted file with the recovery key file, and re-encrypts it with a new password
-    pub fn recover_file(infile: &String, key_file: &String, new_password: &String) -> Result<(), std::io::Error>{
+    pub fn recover_file(ciphertext_path: &String, key_file: &String, new_password: &String) -> Result<(), std::io::Error>{
         let tmp_path = &"tmp__".to_string();
         // load the key file
         let key_bytes: Vec<u8>;
@@ -176,7 +176,7 @@ pub mod crypto_utils{
         let aes_key = Key::<Aes256Gcm>::from_slice(key_bytes.as_slice());
         let aes_cipher = Aes256Gcm::new(aes_key);
         // read the file
-        let contents = parse_encrypted_file(infile)?;
+        let contents = parse_encrypted_file(ciphertext_path)?;
         let plaintext: Vec<u8>;
         match aes_cipher.decrypt(contents[NONCE_POS].as_slice().into(), contents[CIPHERTEXT_POS].as_slice()){
             Ok(plain) => {plaintext = plain}
@@ -185,7 +185,7 @@ pub mod crypto_utils{
         // write the plaintext to a temporary file 
         fs::write(tmp_path, plaintext)?;
         // re-encrypt the original file with a new password
-        encrypt_file(&new_password, &tmp_path, infile)?;
+        encrypt_file(&new_password, &tmp_path, ciphertext_path)?;
         // securely erase the tmp file by overwriting it with zeroes
         let plaintext_len = fs::read(tmp_path)?.len();
         fs::write(tmp_path,vec![0; plaintext_len + 1024])?;
@@ -193,12 +193,12 @@ pub mod crypto_utils{
         Ok(())
     }
 
-    pub fn change_password(password: &String, new_password: &String, infile: &String) -> Result<(), std::io::Error>{
+    pub fn change_password(password: &String, new_password: &String, ciphertext_path: &String) -> Result<(), std::io::Error>{
         let tmp_path = &"tmp__".to_string();
         // attmept to decrypt the file and save the plaintext to a temp file
-        decrypt_file(password, infile, tmp_path)?;
+        decrypt_file(password, ciphertext_path, tmp_path)?;
         // re-encrypt the file with a new password
-        encrypt_file(new_password, tmp_path, infile)?;
+        encrypt_file(new_password, tmp_path, ciphertext_path)?;
         // securely erase the tmp file by overwriting it with zeroes
         let plaintext_len = fs::read(tmp_path)?.len();
         fs::write(tmp_path,vec![0; plaintext_len + 1024])?;
