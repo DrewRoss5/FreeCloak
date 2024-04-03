@@ -12,11 +12,17 @@ To run the program, clone this repo and use the `cargo build` or `cargo run` com
 <dl>
   <dt>help</dt>
   <dd>Displays the help dialogue.</dd>
+  <dt>generate-key [key file]</dt>
+  <dd>Generates a 256-bit key using the opperating system's RNG and stores it to the provided file path. This stores the key in plaintext, USE WITH CAUTION</dd>
   <dt>encrypt [file(s)]</dt>
   <dd>Encrypts the provided file(s) in place with user-provided password(s).</dd>
+  <dt>key-encrypt [plaintext file] [key file]</dt>
+  <dd>Encrypts the provided plaintext file with the key in the provided key file</dd>
   <dt>decrypt [file(s)]</dt>
   <dd>Decrypts the provided file(s) in place with user-provided password(s).</dd>
-  <dt>export-key [infile] [key-file]</dt>
+  <dt>key-decrypt [ciphertext file] [key file]</dt>
+  <dd>Decrypts the provided ciphertext file with the key in the provided key file</dd>
+  <dt>export-key [infile] [key file]</dt>
   <dd>
     Exports the raw encryption key for infile to the provided key file path. This is done to give the user a an option to recover their data if they forget the password to a file, however, it is of the utmost importance to store the key securely as it's stored in the key file as plaintext.<br><b>Example:</b><br><code>cloak export-key secrets.txt secret_key</code>
   </dd>
