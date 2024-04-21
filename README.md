@@ -6,6 +6,11 @@ FreeCloak is a simple, Free and Open Source encryption utility written in rust. 
 ### ⚠️WARNING⚠️
 While this tool uses AES256-GCM encryption, and cryptographically secure random numbers, it has not been professionally audited for security. **USE WITH CAUTION**
 
+## Roadmap:
+<ul>
+  <li>Add directory encryption</li>
+</ul>
+
 ## Usage
 To run the program, clone this repo and use the `cargo build` or `cargo run` command. This will also create a standalone executable at the path `target/debug/cloak` (`cloak.exe` on Windows systems)
 ### Commands:
